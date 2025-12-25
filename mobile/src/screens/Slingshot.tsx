@@ -134,21 +134,14 @@ export const Slingshot: React.FC = () => {
 
           {slingshotState.isReady && !slingshotState.error && (
             <>
-              {slingshotState.isCharging ? (
-                <div className="status-box charging">
-                  <h3>🎯 READY!</h3>
-                  <p className="pulse">Release to SHOOT!</p>
-                </div>
-              ) : (
-                <div className="status-box ready">
-                  <h3>📱 Ready to Launch</h3>
-                  <ol className="instruction-list">
-                    <li>Pull your phone <strong>backward</strong></li>
-                    <li>Throw <strong>forward</strong> rapidly!</li>
-                  </ol>
-                  <p className="tip">💡 Use a smooth, quick motion</p>
-                </div>
-              )}
+              <div className="status-box ready">
+                <h3>📱 Ready to Launch</h3>
+                <ol className="instruction-list">
+                  <li>Make a quick <strong>swing/flick</strong> motion</li>
+                  <li>Like throwing a slingshot!</li>
+                </ol>
+                <p className="tip">💡 One quick motion, any direction</p>
+              </div>
             </>
           )}
         </div>

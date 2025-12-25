@@ -22,9 +22,9 @@ export const useNativeSlingshot = ({ onShot, enabled = true }: UseNativeSlingsho
     error: null,
   });
 
-  const pullBackTimeRef = useRef<number | null>(null);
   const lastShotTimeRef = useRef<number>(0);
-  const isPulledBackRef = useRef(false);
+  const lastAngleRef = useRef<number>(0);
+  const lastUpdateTimeRef = useRef<number>(0);
   const onShotRef = useRef(onShot);
 
   // Keep the ref updated
@@ -54,70 +54,54 @@ export const useNativeSlingshot = ({ onShot, enabled = true }: UseNativeSlingsho
       const z = accel.z ?? 0;
       const now = Date.now();
 
+      // Calculate angle from vertical (tilt angle in degrees)
+      const angle = Math.atan2(y, z) * (180 / Math.PI);
+      const angleDelta = angle - lastAngleRef.current;
+      
+      // Calculate time delta
+      const timeDelta = lastUpdateTimeRef.current > 0 ? now - lastUpdateTimeRef.current : 0;
+      
+      // Calculate angular velocity (degrees per second)
+      const angularVelocity = timeDelta > 0 ? Math.abs(angleDelta) / (timeDelta / 1000) : 0;
+      
+      // Calculate total acceleration magnitude
+      const magnitude = Math.sqrt(x * x + y * y + z * z);
+
       // Log every 500ms to avoid spam
       if (now % 500 < 50) {
-        console.log(`Motion - x: ${x.toFixed(2)}, y: ${y.toFixed(2)}, z: ${z.toFixed(2)}, pulledBack: ${isPulledBackRef.current}`);
+        console.log(`Angle: ${angle.toFixed(1)}°, Velocity: ${angularVelocity.toFixed(0)}°/s, Accel: ${magnitude.toFixed(1)}`);
       }
 
       // Prevent rapid consecutive shots (cooldown: 1 second)
-      if (now - lastShotTimeRef.current < 1000) return;
+      if (now - lastShotTimeRef.current < 1000) {
+        lastAngleRef.current = angle;
+        lastUpdateTimeRef.current = now;
+        return;
+      }
 
-      // PULL BACK DETECTION: accelerometer.y < -6
-      if (y < -6 && !isPulledBackRef.current) {
-        console.log('🎯 PULL BACK DETECTED! y =', y);
-        pullBackTimeRef.current = now;
-        isPulledBackRef.current = true;
+      // SLINGSHOT DETECTION: Require BOTH high angular velocity AND strong acceleration
+      // Angular velocity > 200°/s AND acceleration > 15 m/s²
+      if (angularVelocity > 200 && magnitude > 15) {
+        // Calculate force based on both velocity and acceleration
+        const force = Math.min(Math.max((angularVelocity / 50) + (magnitude / 5), 1), 10);
+
+        console.log('✅ SHOT FIRED! Velocity:', angularVelocity.toFixed(0), '°/s, Accel:', magnitude.toFixed(1), 'Force:', force.toFixed(1));
+
         setState(prev => ({
           ...prev,
-          isPulledBack: true,
-          isCharging: true,
+          isPulledBack: false,
+          isCharging: false,
+          force,
         }));
+
+        // Trigger the shot callback
+        onShotRef.current(force);
+        lastShotTimeRef.current = now;
       }
 
-      // RELEASE DETECTION: accelerometer.y > +8 (lowered threshold from 12)
-      if (y > 8 && isPulledBackRef.current && pullBackTimeRef.current) {
-        const timeSincePull = now - pullBackTimeRef.current;
-        console.log('🚀 RELEASE DETECTED! y =', y, 'timeSincePull =', timeSincePull, 'ms');
-
-        // Only valid if release happens within 600ms of pull (increased from 400ms)
-        if (timeSincePull < 600) {
-          // Calculate force based on acceleration magnitude
-          const magnitude = Math.sqrt(x * x + y * y + z * z);
-          const force = Math.min(Math.max(magnitude / 10, 1), 10); // Normalize to 1-10
-
-          console.log('✅ SHOT FIRED! Force:', force);
-
-          isPulledBackRef.current = false;
-          setState(prev => ({
-            ...prev,
-            isPulledBack: false,
-            isCharging: false,
-            force,
-          }));
-
-          // Trigger the shot callback
-          onShotRef.current(force);
-          lastShotTimeRef.current = now;
-        }
-
-        // Reset pull state
-        pullBackTimeRef.current = null;
-      }
-
-      // Reset if held too long (increased to 800ms from 500ms)
-      if (isPulledBackRef.current && pullBackTimeRef.current) {
-        const timeSincePull = now - pullBackTimeRef.current;
-        if (timeSincePull > 800) {
-          console.log('⏰ Pull held too long, resetting after', timeSincePull, 'ms');
-          pullBackTimeRef.current = null;
-          isPulledBackRef.current = false;
-          setState(prev => ({
-            ...prev,
-            isPulledBack: false,
-            isCharging: false,
-          }));
-        }
-      }
+      // Update last values for next comparison
+      lastAngleRef.current = angle;
+      lastUpdateTimeRef.current = now;
     };
 
     console.log('📱 Adding DeviceMotion event listener...');
