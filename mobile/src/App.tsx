@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Registration } from './screens/Registration';
-import { Slingshot } from './screens/Slingshot';
+import { UserInfo } from './screens/UserInfo';
 import './App.css';
 
 function App() {
@@ -9,7 +9,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Registration />} />
-        <Route path="/slingshot" element={<Slingshot />} />
+        <Route path="/user-info" element={<UserInfo />} />
       </Routes>
     </Router>
   );

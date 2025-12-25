@@ -3,7 +3,8 @@ import { io, Socket } from 'socket.io-client';
 // IMPORTANT: Change this to your backend server URL
 // For local development, use your computer's IP address on the local network
 // Example: 'http://192.168.1.100:3001'
-const SOCKET_URL =  'http://192.168.29.25:3001';
+// const SOCKET_URL =  'http://192.168.29.25:3001';
+const SOCKET_URL =  'https://kg45xxml-3001.inc1.devtunnels.ms';
 
 class SocketService {
   private socket: Socket | null = null;

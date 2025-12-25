@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 
 // const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || '';
-const SOCKET_URL = 'http://192.168.29.25:3001';
+const SOCKET_URL = 'https://kg45xxml-3001.inc1.devtunnels.ms';
 
 let socket: Socket | null = null;
 let isInitializing = false;

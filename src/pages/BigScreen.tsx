@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { initializeSocket } from '../utils/socket';
-import './BigScreen.css';
+import React, { useState, useEffect } from "react";
+import { initializeSocket } from "../utils/socket";
+import "./BigScreen.css";
 
 interface Shot {
   id: string;
@@ -12,118 +12,145 @@ interface Shot {
   createdAt: Date;
   x: number;
   y: number;
-  scale: number;
-  rotation: number;
+  backgroundImage: string;
 }
+
+// Helper function to check if positions overlap (working in percentage space)
+const checkOverlap = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  minDistancePercent = 25 // Minimum 25% distance between shots (approximately 400px card width on 1600px screen)
+) => {
+  const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  return distance < minDistancePercent;
+};
+
+// Generate random position that doesn't overlap with existing shots
+const generateRandomPosition = (existingShots: Shot[]) => {
+  const maxAttempts = 100; // Increased attempts
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    // More varied positioning across entire screen
+    const x = Math.random() * 85 + 5; // 5% to 90% - wider range
+    const y = Math.random() * 80 + 10; // 10% to 90% - wider range
+
+    const overlaps = existingShots.some((shot) =>
+      checkOverlap(x, y, shot.x, shot.y, 25)
+    );
+
+    if (!overlaps) {
+      return { x, y };
+    }
+  }
+
+  // Fallback: use grid-based positioning if random fails
+  const gridCols = 5;
+  const gridRows = 4;
+  const cellWidth = 80 / gridCols;
+  const cellHeight = 70 / gridRows;
+  
+  // Find first available grid cell
+  for (let row = 0; row < gridRows; row++) {
+    for (let col = 0; col < gridCols; col++) {
+      const x = 10 + col * cellWidth + cellWidth / 2 + (Math.random() * 5 - 2.5);
+      const y = 15 + row * cellHeight + cellHeight / 2 + (Math.random() * 5 - 2.5);
+      
+      const overlaps = existingShots.some((shot) =>
+        checkOverlap(x, y, shot.x, shot.y, 20) // Slightly more lenient for grid
+      );
+      
+      if (!overlaps) {
+        return { x, y };
+      }
+    }
+  }
+
+  // Last resort: random position
+  return {
+    x: Math.random() * 85 + 5,
+    y: Math.random() * 80 + 10,
+  };
+};
 
 export const BigScreen: React.FC = () => {
   const [shots, setShots] = useState<Shot[]>([]);
-  const [activeShot, setActiveShot] = useState<Shot | null>(null);
+  // Select random background image on mount
+  // const [backgroundImage, setBackgroundImage] = useState<string>("/background/1.png");
 
   useEffect(() => {
     const socket = initializeSocket();
 
-    socket.on('displayShot', (data: any) => {
-      console.log('🎯 Shot received:', data);
+    socket.on("displayShot", (data: any) => {
+      console.log("🎯 Shot received:", data);
 
-      // Calculate animation parameters based on force
-      const force = data.force || 5;
-      const startX = Math.random() * 20 - 10; // -10 to 10%
-      const startY = 120; // Start from bottom
-      const endX = 50 + (Math.random() * 30 - 15); // 35-65%
-      const endY = 50 + (Math.random() * 20 - 10); // 40-60%
+      setShots((prev) => {
+        // Generate position based on current shots state (prevents stale closure)
+        const { x, y } = generateRandomPosition(prev);
+        const background = `/background/${Math.floor(Math.random() * 5) + 1}.png`;
+        
+        const newShot: Shot = {
+          id: data.id,
+          userName: data.userName,
+          message: data.message,
+          imageUrl: data.imageUrl,
+          force: data.force || 5,
+          timestamp: data.timestamp,
+          createdAt: new Date(data.createdAt),
+          x,
+          y,
+          backgroundImage: background,
+        };
 
-      const newShot: Shot = {
-        id: data.id,
-        userName: data.userName,
-        message: data.message,
-        imageUrl: data.imageUrl,
-        force,
-        timestamp: data.timestamp,
-        createdAt: new Date(data.createdAt),
-        x: startX,
-        y: startY,
-        scale: 0,
-        rotation: 0,
-      };
-
-      setActiveShot(newShot);
-
-      // Animate the shot
-      setTimeout(() => {
-        setActiveShot(prev => 
-          prev ? { ...prev, x: endX, y: endY, scale: 1, rotation: 360 } : null
-        );
-      }, 50);
-
-      // Add to shots list and clear active after animation
-      setTimeout(() => {
-        setShots(prev => [newShot, ...prev].slice(0, 20));
-        setActiveShot(null);
-      }, 2000 + (force * 100));
+        return [newShot, ...prev].slice(0, 15); // Keep max 15 shots
+      });
     });
 
     return () => {
-      socket.off('displayShot');
+      socket.off("displayShot");
     };
-  }, []);
+  }, []); // Empty dependency array - socket listener doesn't need to re-register
 
   return (
-    <div className="big-screen-container">
-      {/* Background */}
-      <div className="background-gradient"></div>
-
-      {/* Header */}
-      <div className="header">
-        <h1 className="title">🎯 Slingshot Live!</h1>
-        <p className="subtitle">Messages flying in real-time</p>
+    <div className="big-screen-container" style={{}}>
+      {/* Logo */}
+      <div className="logo-container">
+        <img src="/logo.png" alt="Slingshot Logo" className="logo" />
       </div>
 
-      {/* Active Shot Animation */}
-      {activeShot && (
+      {/* Randomly Positioned Shots */}
+      {shots.map((shot) => (
         <div
-          className="active-shot"
+          key={shot.id}
+          className="shot-bubble"
           style={{
-            left: `${activeShot.x}%`,
-            top: `${activeShot.y}%`,
-            transform: `translate(-50%, -50%) scale(${activeShot.scale}) rotate(${activeShot.rotation}deg)`,
-            transitionDuration: `${1 + activeShot.force * 0.2}s`,
+            left: `${shot.x}%`,
+            top: `${shot.y}%`,
+            zIndex: shots.length - shots.indexOf(shot),
+            backgroundImage: shot.backgroundImage
+              ? `url(${shot.backgroundImage})`
+              : "none",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "contain",
           }}
         >
-          <div className="shot-card flying">
-            <img src={activeShot.imageUrl} alt={activeShot.userName} className="shot-image" />
-            <div className="shot-content">
-              <h3 className="shot-name">{activeShot.userName}</h3>
-              <p className="shot-message">{activeShot.message}</p>
-              <div className="shot-force">
-                Force: {activeShot.force.toFixed(1)} 🚀
-              </div>
-            </div>
+          <div className="shot-image-circle">
+            <img
+              src={shot.imageUrl}
+              alt={shot.userName}
+              className="shot-avatar"
+            />
+          </div>
+          <div className="shot-info">
+            <h3 className="shot-name">{shot.userName}</h3>
+            <p className="shot-message">{shot.message}</p>
           </div>
         </div>
-      )}
-
-      {/* Recent Shots Grid */}
-      <div className="shots-grid">
-        {shots.map((shot) => (
-          <div key={shot.id} className="shot-card">
-            <img src={shot.imageUrl} alt={shot.userName} className="shot-image" />
-            <div className="shot-content">
-              <h3 className="shot-name">{shot.userName}</h3>
-              <p className="shot-message">{shot.message}</p>
-              <div className="shot-meta">
-                <span className="shot-force">⚡ {shot.force.toFixed(1)}</span>
-                <span className="shot-time">
-                  {new Date(shot.createdAt).toLocaleTimeString()}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      ))}
 
       {/* Empty State */}
-      {shots.length === 0 && !activeShot && (
+      {shots.length === 0 && (
         <div className="empty-state">
           <div className="empty-icon">📱</div>
           <h2>Waiting for shots...</h2>

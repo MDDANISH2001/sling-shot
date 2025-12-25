@@ -1,147 +1,143 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCamera } from '../hooks/useCamera';
-import './Registration.css';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import "./Registration.css";
 
 export const Registration: React.FC = () => {
   const navigate = useNavigate();
-  const { photo, isCapturing, error, capturePhoto, retakePhoto } = useCamera();
-  
-  const [name, setName] = useState('');
-  const [message, setMessage] = useState('');
-  const [validationError, setValidationError] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const handleCapturePhoto = async () => {
+  useEffect(() => {
+    if (!photo) {
+      startCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [photo]);
+
+  const startCamera = async () => {
     try {
-      await capturePhoto();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 1080, height: 1080 },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
     } catch (err) {
-      console.error('Photo capture error:', err);
+      console.error("Camera error:", err);
     }
   };
 
-  const handleStartSlingshot = () => {
-    // Validate inputs
-    if (!name.trim()) {
-      setValidationError('Please enter your name');
-      return;
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
-    if (!message.trim()) {
-      setValidationError('Please enter a message');
-      return;
-    }
-    if (!photo) {
-      setValidationError('Please capture a selfie');
-      return;
-    }
+  };
 
-    // Navigate to slingshot screen with user data
-    navigate('/slingshot', {
-      state: {
-        name: name.trim(),
-        message: message.trim(),
-        selfie: photo,
-      },
-    });
+  const captureFromVideo = () => {
+    if (!videoRef.current) return;
+
+    const canvas = document.createElement("canvas");
+    const video = videoRef.current;
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const size = Math.min(video.videoWidth, video.videoHeight);
+    const x = (video.videoWidth - size) / 2;
+    const y = (video.videoHeight - size) / 2;
+    ctx.drawImage(video, x, y, size, size, 0, 0, 1080, 1080);
+
+    setPhoto(canvas.toDataURL("image/jpeg", 0.9));
+    stopCamera();
+  };
+
+  const handleCapturePhoto = async () => {
+    setIsCapturing(true);
+    try {
+      if (videoRef.current && streamRef.current) {
+        captureFromVideo();
+      } else {
+        const image = await Camera.getPhoto({
+          quality: 90,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+          width: 1080,
+          height: 1080,
+        });
+        setPhoto(image.dataUrl || null);
+      }
+    } catch (err) {
+      console.error("Photo capture error:", err);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const retakePhoto = () => setPhoto(null);
+
+  const handleContinue = () => {
+    if (!photo) return;
+    navigate("/user-info", { state: { selfie: photo } });
   };
 
   return (
     <div className="registration-container">
-      <div className="registration-card">
-        <div className="header">
-          <h1 className="title">🎯 Slingshot</h1>
-          <p className="subtitle">Get ready to shoot your message!</p>
-        </div>
-
-        {/* Selfie Section */}
-        <div className="photo-section">
-          {!photo ? (
+      <img src="/logo.png" alt="Logo" className="logo" />
+      
+      {!photo && (
+        <h2 style={{
+          fontSize: '28px',
+          fontWeight: '800',
+          color: '#fff',
+          textAlign: 'center',
+          marginBottom: '20px',
+          textShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+        }}>
+          📸 Smile for the Camera!
+        </h2>
+      )}
+      
+      <div className="camera-section">
+        {!photo ? (
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="camera-preview"
+            />
             <button
               onClick={handleCapturePhoto}
               disabled={isCapturing}
-              className="photo-button"
+              className="capture-button"
             >
-              {isCapturing ? (
-                <>
-                  <span className="spinner"></span>
-                  <span>Capturing...</span>
-                </>
-              ) : (
-                <>
-                  <span className="icon">📷</span>
-                  <span>Take Selfie</span>
-                </>
-              )}
+              {isCapturing ? "..." : "●"}
             </button>
-          ) : (
-            <div className="photo-preview">
-              <img src={photo} alt="Your selfie" className="selfie-image" />
+          </>
+        ) : (
+          <>
+            <img src={photo} alt="Selfie" className="photo-preview" />
+            <div className="button-group">
               <button onClick={retakePhoto} className="retake-button">
-                🔄 Retake Photo
+                🔄 Retake
+              </button>
+              <button onClick={handleContinue} className="continue-button">
+                Continue 🎯
               </button>
             </div>
-          )}
-          {error && <p className="error-text">Camera error: {error}</p>}
-        </div>
-
-        {/* Form Section */}
-        <div className="form-section">
-          <div className="input-group">
-            <label htmlFor="name" className="label">
-              Your Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setValidationError('');
-              }}
-              placeholder="Enter your name"
-              className="input"
-              maxLength={50}
-            />
-          </div>
-
-          <div className="input-group">
-            <label htmlFor="message" className="label">
-              Your Message
-            </label>
-            <textarea
-              id="message"
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                setValidationError('');
-              }}
-              placeholder="Write your message here..."
-              className="textarea"
-              rows={4}
-              maxLength={200}
-            />
-            <p className="char-count">{message.length}/200</p>
-          </div>
-
-          {validationError && (
-            <div className="validation-error">
-              <span className="icon">⚠️</span>
-              <span>{validationError}</span>
-            </div>
-          )}
-
-          <button
-            onClick={handleStartSlingshot}
-            disabled={!name.trim() || !message.trim() || !photo}
-            className="submit-button"
-          >
-            <span className="icon">🚀</span>
-            <span>Start Slingshot</span>
-          </button>
-        </div>
-
-        <div className="footer-text">
-          <p>📱 Pull your phone back and release to shoot!</p>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
