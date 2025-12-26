@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useNativeSlingshot } from '../hooks/useNativeSlingshot';
-import { getSocket } from '../lib/socket';
+import { getSocket, socketService } from '../lib/socket';
 import { UserData, ShotPayload } from '../types';
 import './Slingshot.css';
 
@@ -20,28 +20,35 @@ export const Slingshot: React.FC = () => {
   }, [userData, navigate]);
 
   useEffect(() => {
-    const socket = getSocket();
+    const setupSocket = async () => {
+      const socket = await getSocket();
 
-    socket.on('connect', () => {
-      setConnectionStatus('connected');
-    });
+      socket.on('connect', () => {
+        setConnectionStatus('connected');
+      });
 
-    socket.on('disconnect', () => {
-      setConnectionStatus('error');
-    });
+      socket.on('disconnect', () => {
+        setConnectionStatus('error');
+      });
 
-    socket.on('connect_error', () => {
-      setConnectionStatus('error');
-    });
+      socket.on('connect_error', () => {
+        setConnectionStatus('error');
+      });
+    };
+
+    setupSocket();
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('connect_error');
+      }
     };
   }, []);
 
-  const handleShot = (force: number) => {
+  const handleShot = async (force: number) => {
     if (isShooting || !userData) return;
 
     setIsShooting(true);
@@ -54,7 +61,7 @@ export const Slingshot: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    const socket = getSocket();
+    const socket = await getSocket();
     socket.emit('shotFired', payload);
 
     setTimeout(() => {

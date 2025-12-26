@@ -19,7 +19,7 @@ const io = new SocketIOServer(server, {
   pingInterval: 25000,
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -308,7 +308,7 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'Server is running' });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT,  '0.0.0.0', () => {
   console.log(`\n🚀 Server running on ${PORT}`);
   console.log(`📡 Socket.IO ready for connections\n`);
 });

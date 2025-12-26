@@ -1,23 +1,46 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Preferences } from "@capacitor/preferences";
 import "./Registration.css";
 
 export const Registration: React.FC = () => {
   const navigate = useNavigate();
   const [photo, setPhoto] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isCheckingIP, setIsCheckingIP] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const checkIPConfiguration = async () => {
+    try {
+      const { value: savedIP } = await Preferences.get({ key: "socket_ip" });
+      
+      if (!savedIP) {
+        // No IP configured, redirect to settings
+        navigate('/ip-settings');
+        return;
+      }
+    } catch (error) {
+      console.error("Error checking IP configuration:", error);
+    } finally {
+      setIsCheckingIP(false);
+    }
+  };
+
   useEffect(() => {
-    if (!photo) {
+    checkIPConfiguration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!photo && !isCheckingIP) {
       startCamera();
     }
     return () => {
       stopCamera();
     };
-  }, [photo]);
+  }, [photo, isCheckingIP]);
 
   const startCamera = async () => {
     try {
@@ -90,8 +113,27 @@ export const Registration: React.FC = () => {
     navigate("/user-info", { state: { selfie: photo } });
   };
 
+  if (isCheckingIP) {
+    return (
+      <div className="registration-container">
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="registration-container">
+      <button 
+        className="settings-icon-button" 
+        onClick={() => navigate('/ip-settings')}
+        title="Server Settings"
+      >
+        ⚙️
+      </button>
+      
       <img src="/logo.png" alt="Logo" className="logo" />
       
       {!photo && (

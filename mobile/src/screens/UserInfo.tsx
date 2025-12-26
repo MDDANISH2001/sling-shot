@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useNativeSlingshot } from "../hooks/useNativeSlingshot";
-import { getSocket } from "../lib/socket";
+import { getSocket, socketService } from "../lib/socket";
 import { ShotPayload } from "../types";
 import "./UserInfo.css";
 
@@ -29,24 +29,31 @@ export const UserInfo: React.FC = () => {
 
   // Socket connection
   useEffect(() => {
-    const socket = getSocket();
+    const setupSocket = async () => {
+      const socket = await getSocket();
 
-    socket.on('connect', () => {
-      setConnectionStatus('connected');
-    });
+      socket.on('connect', () => {
+        setConnectionStatus('connected');
+      });
 
-    socket.on('disconnect', () => {
-      setConnectionStatus('error');
-    });
+      socket.on('disconnect', () => {
+        setConnectionStatus('error');
+      });
 
-    socket.on('connect_error', () => {
-      setConnectionStatus('error');
-    });
+      socket.on('connect_error', () => {
+        setConnectionStatus('error');
+      });
+    };
+
+    setupSocket();
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('connect_error');
+      }
     };
   }, []);
 
@@ -55,7 +62,7 @@ export const UserInfo: React.FC = () => {
     setIsReady(true);
   };
 
-  const handleShot = (force: number) => {
+  const handleShot = async (force: number) => {
     if (isShooting) return;
 
     setIsShooting(true);
@@ -68,7 +75,7 @@ export const UserInfo: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    const socket = getSocket();
+    const socket = await getSocket();
     socket.emit('shotFired', payload);
 
     // Show success and return to start
@@ -86,6 +93,15 @@ export const UserInfo: React.FC = () => {
 
   return (
     <div className={`user-info-container ${isReady ? 'ready-mode' : ''} ${slingshotState.isCharging ? 'charging' : ''} ${isShooting ? 'shooting' : ''}`}>
+      {/* Settings Icon */}
+      <button 
+        className="settings-icon-button" 
+        onClick={() => navigate('/ip-settings')}
+        title="Server Settings"
+      >
+        ⚙️
+      </button>
+
       {/* Logo */}
       <img src="/logo.png" alt="Logo" className="logo" />
 
